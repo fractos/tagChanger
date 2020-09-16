@@ -9,7 +9,7 @@ import (
 	goGithub "github.com/google/go-github/v32/github"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	"strings"
 )
 
@@ -73,7 +73,6 @@ func changeFile(ctx context.Context, client github.File, repo, branch, filePath,
 	file, _ , _, err := client.GetContents(ctx, repoSplits[0], repoSplits[1], filePath, &goGithub.RepositoryContentGetOptions{
 		Ref: branch,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -85,15 +84,23 @@ func changeFile(ctx context.Context, client github.File, repo, branch, filePath,
 		return err
 	}
 
-	var body map[string]interface{}
+	body := yaml.Node{}
 	err = yaml.Unmarshal([]byte(decodedContent), &body)
+	if err != nil {
+		return err
+	}
 
 	path, err := yamlChanger.GetPathSplits(valuePath)
 	if err != nil {
 		return err
 	}
 
-	changedContent, err := yamlChanger.ChangeYaml(body, newValue, path)
+	err = yamlChanger.ChangeYaml(&body, newValue, path)
+	if err != nil {
+		return err
+	}
+
+	changedContent, err := yaml.Marshal(&body)
 	if err != nil {
 		return err
 	}
