@@ -40,14 +40,33 @@ func TestChangeFile(t *testing.T ) {
 		newValue     	string
 		expectedError	error
 	}{
+
+		{
+			name: "happy flow handle yaml anchor",
+			content : `
+global: &global
+ tag: 123
+
+test: *global
+`,
+			newContent : `global: &global
+    tag: "1234"
+test: *global
+`,
+			repo: "owner/repository",
+			branch: "branch",
+			filePath: "filePath",
+			valuePath: "global.tag",
+			newValue: "1234",
+		},
 		{
 			name: "happy flow",
 			content : `
 global:
- tag: 123
+ tag: "123"
 `,
 			newContent : `global:
-  tag: newValue
+    tag: "newValue"
 `,
 			repo: "owner/repository",
 			branch: "branch",
@@ -66,8 +85,8 @@ global:
 other: other
 `,
 			newContent : `global:
-  other: other
-  tag: newValue
+    tag: "newValue"
+    other: other
 other: other
 `,
 			repo: "owner/repository",
@@ -85,7 +104,7 @@ global:
  tag: 123
 `,
 			newContent : `global:
-  tag: "1234"
+    tag: "1234"
 `,
 			repo: "owner/repository",
 			branch: "branch",
@@ -101,7 +120,7 @@ global:
  tag: 123
 `,
 			newContent : `global:
-  tag: newValue
+    tag: "newValue"
 `,
 			repo: "repo",
 			branch: "branch",
@@ -118,7 +137,7 @@ global:
  tag: 123
 `,
 			newContent : `global:
-  tag: newValue
+    tag: "newValue"
 `,
 			repo: "owner/repository",
 			branch: "branch",

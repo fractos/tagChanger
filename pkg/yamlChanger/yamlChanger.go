@@ -1,9 +1,9 @@
 package yamlChanger
 
 import (
+	"errors"
 	"fmt"
-	"github.com/icza/dyno"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	"strings"
 )
 
@@ -15,7 +15,7 @@ func (p *PathError) Error() string {
 }
 
 
-func GetPathSplits(path string) (res []interface{}, err error) {
+func GetPathSplits(path string) (res []string, err error) {
 	splits := strings.Split(path, ".")
 	if len(splits) == 0 {
 		return nil, &PathError{}
@@ -31,13 +31,35 @@ func GetPathSplits(path string) (res []interface{}, err error) {
 
 }
 
-func ChangeYaml(body map[string]interface{}, newValue string, path []interface{}) (string, error) {
+func findNodeValue(node *yaml.Node, path []string) *yaml.Node{
 
-	err := dyno.Set(body, newValue, path...)
-	if err != nil {
-		return "", err
+	found := false
+	for _, n := range node.Content{
+		if found == true {
+			if len(path) == 1 {
+				return n
+			}
+			return findNodeValue(n, path[1:])
+		}
+		if n.Value == path[0] {
+			found = true
+		}
 	}
 
-	byteRes, err := yaml.Marshal(&body)
-	return string(byteRes), err
+	return nil
+}
+
+func ChangeYaml(body *yaml.Node, newValue string, path []string) error {
+
+	node := findNodeValue(body.Content[0], path)
+
+	if node == nil {
+		return errors.New("path not found")
+	}
+
+	node.Style = yaml.DoubleQuotedStyle
+	node.Tag = ""
+	node.Value = fmt.Sprintf("%s", newValue)
+
+	return nil
 }
