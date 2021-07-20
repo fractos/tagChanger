@@ -24,6 +24,8 @@ var (
 	newValue		string
 	commitMessage	string
 	sshFile			string
+	appID			int64
+	installationID	int64
 )
 
 func GetCommand() *cobra.Command{
@@ -34,7 +36,7 @@ func GetCommand() *cobra.Command{
 		RunE: 	func(_ *cobra.Command, _ []string) error{
 			ctx := context.Background()
 
-			client, err := github.GetClient(user, pass, accessToken, sshFile, ctx)
+			client, err := github.GetClient(user, pass, accessToken, sshFile, appID, installationID, ctx)
 			if err != nil {
 				return err
 			}
@@ -57,6 +59,8 @@ func GetCommand() *cobra.Command{
 	cmd.PersistentFlags().StringVar(&pass,			"pass",			viper.GetString("PASS"),	"github password")
 	cmd.PersistentFlags().StringVar(&accessToken,	"access-token",	viper.GetString("TOKEN"),	"github access token")
 	cmd.PersistentFlags().StringVar(&sshFile,		"ssh-file",		"",						"github ssh key path (.pem file)")
+	cmd.PersistentFlags().Int64Var(&appID,			"app-id",			0,						"the id of the application")
+	cmd.PersistentFlags().Int64Var(&installationID,	"installation-id",0,						"the id of the application installation")
 	cmd.PersistentFlags().StringVar(&valuePath,		"value-path",		"",						"the yaml path to the value")
 	cmd.PersistentFlags().StringVar(&newValue,		"new-value",		"",						"the new value")
 	cmd.PersistentFlags().StringVar(&commitMessage, "commit-msg",		"",						"the commit message that will be used")
@@ -64,7 +68,7 @@ func GetCommand() *cobra.Command{
 	return cmd
 }
 
-func changeFile(ctx context.Context, client github.File, repo, branch, filePath, valuePath, newValue string) error {
+func changeFile(ctx context.Context, client github.RepoService, repo, branch, filePath, valuePath, newValue string) error {
 	repoSplits := strings.Split(repo, "/")
 	if len(repoSplits) != 2 {
 		return errors.New("--repo formant should be owner/repository")

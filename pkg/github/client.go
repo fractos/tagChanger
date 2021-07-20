@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func GetClient(user, pass, accessToken, sshFile string, ctx context.Context) (*github.Client, error) {
+func GetClient(user, pass, accessToken, sshFile string, appID, installationID int64, ctx context.Context) (*github.Client, error) {
 	var httpClient *http.Client
 	if accessToken != "" {
 		ts := oauth2.StaticTokenSource(
@@ -28,7 +28,7 @@ func GetClient(user, pass, accessToken, sshFile string, ctx context.Context) (*g
 	}
 
 	if sshFile != "" {
-		itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, 1, 99, sshFile)
+		itr, err := ghinstallation.NewKeyFromFile(http.DefaultTransport, appID, installationID, sshFile)
 		if err != nil {
 			return nil, err
 		}
