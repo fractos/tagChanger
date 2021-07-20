@@ -14,6 +14,21 @@ type RepositoryServiceStub struct {
 	mock.Mock
 }
 
+func (r *RepositoryServiceStub) AddAdminEnforcement(ctx context.Context, owner, repo, branch string) (*github.AdminEnforcement, *github.Response, error) {
+	panic("implement me")
+}
+
+func (r *RepositoryServiceStub) GetAdminEnforcement(ctx context.Context, owner, repo, branch string) (*github.AdminEnforcement, *github.Response, error) {
+	args := r.Called(ctx, owner, repo, branch)
+
+	return args.Get(0).(*github.AdminEnforcement), args.Get(1).(*github.Response), args.Error(2)
+
+}
+
+func (r *RepositoryServiceStub) RemoveAdminEnforcement(ctx context.Context, owner, repo, branch string) (*github.Response, error) {
+	panic("implement me")
+}
+
 func (r *RepositoryServiceStub) GetContents(ctx context.Context, owner, repo, path string, opt *github.RepositoryContentGetOptions) (fileContent *github.RepositoryContent, directoryContent []*github.RepositoryContent, resp *github.Response, err error){
 	args := r.Called(ctx, owner, repo, path, opt)
 
@@ -160,6 +175,9 @@ global:
 
 		fileSHA := "file SHA"
 		commitSHA := "commit SHA"
+		clientStub.On("GetAdminEnforcement", ctx, "owner", "repository", "branch").
+			Return( &github.AdminEnforcement{}, &github.Response{}, errors.New("error"))
+
 		clientStub.On("GetContents", ctx, "owner", "repository", "filePath", &github.RepositoryContentGetOptions{
 			Ref: c.branch,
 		}).

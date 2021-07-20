@@ -110,12 +110,18 @@ func changeFile(ctx context.Context, client github.RepoService, repo, branch, fi
 	}
 
 	fmt.Println("changed yaml, now committing it to github")
-	_, _, err = client.UpdateFile(ctx, repoSplits[0], repoSplits[1], filePath, &goGithub.RepositoryContentFileOptions{
-		Branch:		&branch,
-		Message: 	&commitMessage,
-		Content: 	[]byte(changedContent),
-		SHA:     	goGithub.String(file.GetSHA()),
-	})
+
+	err = AdminForceDisable(ctx, client, repoSplits[0], repoSplits[1], branch,
+		func() error {
+			_,_, err := client.UpdateFile(ctx, repoSplits[0], repoSplits[1], filePath, &goGithub.RepositoryContentFileOptions{
+				Branch:		&branch,
+				Message: 	&commitMessage,
+				Content: 	[]byte(changedContent),
+				SHA:     	goGithub.String(file.GetSHA()),
+			})
+
+			return err
+		})
 
 	if err != nil {
 		return err
@@ -123,4 +129,26 @@ func changeFile(ctx context.Context, client github.RepoService, repo, branch, fi
 
 	fmt.Println("file committed")
 	return nil
+}
+func AdminForceDisable(ctx context.Context, client github.RepoService, owner, repo, branch string, fn func() error) error {
+	adminEnforc, _, adminErr := client.GetAdminEnforcement(ctx, owner, repo, branch)
+
+	if adminErr != nil || (adminErr == nil && adminEnforc.Enabled == false) {
+		return fn()
+	}
+
+
+	_, err := client.RemoveAdminEnforcement(ctx,owner, repo, branch)
+	if err != nil {
+		return err
+	}
+
+	FnErr := fn()
+
+	_, _, err = client.AddAdminEnforcement(ctx,owner, repo, branch)
+	if err != nil {
+		return err
+	}
+
+	return FnErr
 }
