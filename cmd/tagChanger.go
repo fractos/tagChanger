@@ -68,7 +68,7 @@ func GetCommand() *cobra.Command{
 	return cmd
 }
 
-func changeFile(ctx context.Context, client github.File, repo, branch, filePath, valuePath, newValue string) error {
+func changeFile(ctx context.Context, client github.RepoService, repo, branch, filePath, valuePath, newValue string) error {
 	repoSplits := strings.Split(repo, "/")
 	if len(repoSplits) != 2 {
 		return errors.New("--repo formant should be owner/repository")
