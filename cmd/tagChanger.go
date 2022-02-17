@@ -4,36 +4,38 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/OmerKahani/tagChanger/pkg/github"
 	"github.com/OmerKahani/tagChanger/pkg/yamlChanger"
 	goGithub "github.com/google/go-github/v32/github"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
-	"strings"
 )
 
 var (
-	filePath		string
-	repo			string
-	branch			string
-	user			string
-	pass			string
-	accessToken		string
-	valuePath		string
-	newValue		string
-	commitMessage	string
-	sshFile			string
-	appID			int64
-	installationID	int64
+	filePath             string
+	repo                 string
+	branch               string
+	user                 string
+	pass                 string
+	accessToken          string
+	valuePath            string
+	alternativeValuePath string
+	newValue             string
+	commitMessage        string
+	sshFile              string
+	appID                int64
+	installationID       int64
 )
 
-func GetCommand() *cobra.Command{
+func GetCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:	"tagChanger",
-		Short:	"change yaml value in github",
-		Long: 	"changer - retrieve a yaml file from github, change a specific value in it, and commit it back to github",
-		RunE: 	func(_ *cobra.Command, _ []string) error{
+		Use:   "tagChanger",
+		Short: "change yaml value in github",
+		Long:  "changer - retrieve a yaml file from github, change a specific value in it, and commit it back to github",
+		RunE: func(_ *cobra.Command, _ []string) error {
 			ctx := context.Background()
 
 			client, err := github.GetClient(user, pass, accessToken, sshFile, appID, installationID, ctx)
@@ -52,18 +54,19 @@ func GetCommand() *cobra.Command{
 	}
 
 	viper.AutomaticEnv()
-	cmd.PersistentFlags().StringVar(&filePath,		"file-path",		"",						"the YAML file path")
-	cmd.PersistentFlags().StringVar(&repo,			"repo",			"", 						"owner/repository")
-	cmd.PersistentFlags().StringVar(&branch,		"branch",			"main",					"The github branch (default is main)")
-	cmd.PersistentFlags().StringVar(&user,			"user",			"", 						"github user")
-	cmd.PersistentFlags().StringVar(&pass,			"pass",			viper.GetString("PASS"),	"github password")
-	cmd.PersistentFlags().StringVar(&accessToken,	"access-token",	viper.GetString("TOKEN"),	"github access token")
-	cmd.PersistentFlags().StringVar(&sshFile,		"ssh-file",		"",						"github ssh key path (.pem file)")
-	cmd.PersistentFlags().Int64Var(&appID,			"app-id",			0,						"the id of the application")
-	cmd.PersistentFlags().Int64Var(&installationID,	"installation-id",0,						"the id of the application installation")
-	cmd.PersistentFlags().StringVar(&valuePath,		"value-path",		"",						"the yaml path to the value")
-	cmd.PersistentFlags().StringVar(&newValue,		"new-value",		"",						"the new value")
-	cmd.PersistentFlags().StringVar(&commitMessage, "commit-msg",		"",						"the commit message that will be used")
+	cmd.PersistentFlags().StringVar(&filePath, "file-path", "", "the YAML file path")
+	cmd.PersistentFlags().StringVar(&repo, "repo", "", "owner/repository")
+	cmd.PersistentFlags().StringVar(&branch, "branch", "main", "The github branch (default is main)")
+	cmd.PersistentFlags().StringVar(&user, "user", "", "github user")
+	cmd.PersistentFlags().StringVar(&pass, "pass", viper.GetString("PASS"), "github password")
+	cmd.PersistentFlags().StringVar(&accessToken, "access-token", viper.GetString("TOKEN"), "github access token")
+	cmd.PersistentFlags().StringVar(&sshFile, "ssh-file", "", "github ssh key path (.pem file)")
+	cmd.PersistentFlags().Int64Var(&appID, "app-id", 0, "the id of the application")
+	cmd.PersistentFlags().Int64Var(&installationID, "installation-id", 0, "the id of the application installation")
+	cmd.PersistentFlags().StringVar(&valuePath, "value-path", "", "the yaml path to the value")
+	cmd.PersistentFlags().StringVar(&alternativeValuePath, "alternative-value-path", "an alternative yaml path to the value to check if the primary one doesn't work")
+	cmd.PersistentFlags().StringVar(&newValue, "new-value", "", "the new value")
+	cmd.PersistentFlags().StringVar(&commitMessage, "commit-msg", "", "the commit message that will be used")
 
 	return cmd
 }
@@ -74,7 +77,7 @@ func changeFile(ctx context.Context, client github.RepoService, repo, branch, fi
 		return errors.New("--repo formant should be owner/repository")
 	}
 
-	file, _ , _, err := client.GetContents(ctx, repoSplits[0], repoSplits[1], filePath, &goGithub.RepositoryContentGetOptions{
+	file, _, _, err := client.GetContents(ctx, repoSplits[0], repoSplits[1], filePath, &goGithub.RepositoryContentGetOptions{
 		Ref: branch,
 	})
 	if err != nil {
@@ -101,7 +104,23 @@ func changeFile(ctx context.Context, client github.RepoService, repo, branch, fi
 
 	err = yamlChanger.ChangeYaml(&body, newValue, path)
 	if err != nil {
-		return err
+		if err.Error() == "path not found" {
+			// check with the alternative path if it has been defined
+			if len(alternativeValuePath) > 0 {
+				path, err = yamlChanger.GetPathSplits(alternativeValuePath)
+				if err != nil {
+					return err
+				}
+
+				err = yamlChanger.ChangeYaml(&body, newValue, path)
+				if err != nil {
+					return err
+				}
+			}
+
+		} else {
+			return err
+		}
 	}
 
 	changedContent, err := yaml.Marshal(&body)
@@ -113,11 +132,11 @@ func changeFile(ctx context.Context, client github.RepoService, repo, branch, fi
 
 	err = AdminForceDisable(ctx, client, repoSplits[0], repoSplits[1], branch,
 		func() error {
-			_,_, err := client.UpdateFile(ctx, repoSplits[0], repoSplits[1], filePath, &goGithub.RepositoryContentFileOptions{
-				Branch:		&branch,
-				Message: 	&commitMessage,
-				Content: 	[]byte(changedContent),
-				SHA:     	goGithub.String(file.GetSHA()),
+			_, _, err := client.UpdateFile(ctx, repoSplits[0], repoSplits[1], filePath, &goGithub.RepositoryContentFileOptions{
+				Branch:  &branch,
+				Message: &commitMessage,
+				Content: []byte(changedContent),
+				SHA:     goGithub.String(file.GetSHA()),
 			})
 
 			return err
@@ -137,15 +156,14 @@ func AdminForceDisable(ctx context.Context, client github.RepoService, owner, re
 		return fn()
 	}
 
-
-	_, err := client.RemoveAdminEnforcement(ctx,owner, repo, branch)
+	_, err := client.RemoveAdminEnforcement(ctx, owner, repo, branch)
 	if err != nil {
 		return err
 	}
 
 	FnErr := fn()
 
-	_, _, err = client.AddAdminEnforcement(ctx,owner, repo, branch)
+	_, _, err = client.AddAdminEnforcement(ctx, owner, repo, branch)
 	if err != nil {
 		return err
 	}
